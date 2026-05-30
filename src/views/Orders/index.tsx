@@ -7,7 +7,7 @@ import { exportToCSV, printSchedule } from '../../utils/exportUtils';
 import { isWeekend, getColombiaHolidayName } from '../../utils/colombiaHolidays';
 import { 
   Plus, Search, Edit2, Copy, Trash2, Download, Upload, Filter, Calendar, Users, 
-  Settings, RefreshCw, Layers, ChevronDown, ChevronUp, PlusCircle, Trash, X, AlertCircle 
+  Settings, RefreshCw, Layers, ChevronDown, ChevronUp, PlusCircle, Trash, X, AlertCircle, Check
 } from 'lucide-react';
 
 export const Orders: React.FC = () => {
@@ -39,6 +39,8 @@ export const Orders: React.FC = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [orderToDeleteId, setOrderToDeleteId] = useState<string | null>(null);
+  const [isDateConfirmOpen, setIsDateConfirmOpen] = useState(false);
+  const [dateToConfirm, setDateToConfirm] = useState<string | null>(null);
 
   // Form State
   const [clientName, setClientName] = useState('');
@@ -54,6 +56,33 @@ export const Orders: React.FC = () => {
 
   const toggleRowExpansion = (orderId: string) => {
     setExpandedOrderId(prev => prev === orderId ? null : orderId);
+  };
+
+  const getDayInfo = (dateString: string) => {
+    const date = new Date(dateString + 'T00:00:00');
+    const dayIndex = date.getDay();
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayName = dayNames[dayIndex];
+    
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    const formattedDate = date.toLocaleDateString('es-CO', options);
+    
+    const isHoliday = getColombiaHolidayName(date);
+    const isWeekendDay = isWeekend(date);
+    
+    return {
+      date,
+      dayName,
+      formattedDate,
+      isHoliday,
+      isWeekendDay,
+      dayIndex
+    };
   };
 
   const validateDueDate = (dateString: string): string | null => {
@@ -78,9 +107,31 @@ export const Orders: React.FC = () => {
   };
 
   const handleDueDateChange = (newDate: string) => {
-    setDueDate(newDate);
     const warning = validateDueDate(newDate);
-    setDateWarning(warning);
+    if (warning) {
+      // Mostrar modal de confirmación si hay advertencia
+      setDateToConfirm(newDate);
+      setIsDateConfirmOpen(true);
+    } else {
+      // Aceptar directamente si no hay advertencia
+      setDueDate(newDate);
+      setDateWarning(null);
+    }
+  };
+
+  const handleConfirmDate = () => {
+    if (dateToConfirm) {
+      setDueDate(dateToConfirm);
+      const warning = validateDueDate(dateToConfirm);
+      setDateWarning(warning);
+      setIsDateConfirmOpen(false);
+      setDateToConfirm(null);
+    }
+  };
+
+  const handleRejectDate = () => {
+    setIsDateConfirmOpen(false);
+    setDateToConfirm(null);
   };
 
   const openCreateModal = () => {
@@ -608,6 +659,83 @@ export const Orders: React.FC = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Date Confirmation Modal */}
+      <Modal
+        isOpen={isDateConfirmOpen}
+        onClose={handleRejectDate}
+        title="Validación de Fecha de Entrega"
+        size="sm"
+      >
+        {dateToConfirm && (() => {
+          const dayInfo = getDayInfo(dateToConfirm);
+          return (
+            <div className="space-y-5 text-xs">
+              {/* Date Display */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-center space-y-2">
+                <div className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">
+                  {dayInfo.formattedDate}
+                </div>
+                <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                  {dayInfo.dayName}
+                </div>
+              </div>
+
+              {/* Warning Information */}
+              <div className="space-y-3">
+                {dayInfo.isHoliday && (
+                  <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+                    <Calendar className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-bold text-amber-900 dark:text-amber-200">📅 Festivo Colombiano</p>
+                      <p className="text-amber-700 dark:text-amber-300">{dayInfo.isHoliday}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {dayInfo.isWeekendDay && (
+                  <div className="flex items-start gap-3 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-bold text-rose-900 dark:text-rose-200">⏳ Fin de Semana</p>
+                      <p className="text-rose-700 dark:text-rose-300">
+                        {dayInfo.dayIndex === 0 
+                          ? 'Es domingo - No hay producción programada' 
+                          : 'Es sábado - No hay producción programada'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Message */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 rounded-lg text-center">
+                <p className="text-blue-800 dark:text-blue-300">
+                  ¿Deseas confirmar esta fecha para la entrega? Puedes cambiarla si lo prefieres.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleRejectDate}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg font-bold transition-all"
+                >
+                  Cambiar Fecha
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDate}
+                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white rounded-lg font-bold transition-all shadow-md shadow-indigo-500/10"
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Creation and Modification Form Modal */}
