@@ -4,9 +4,10 @@ import type { ProductionOrder, OrderProduct, OrderProductStep, PriorityLevel, Or
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { exportToCSV, printSchedule } from '../../utils/exportUtils';
+import { isWeekend, getColombiaHolidayName } from '../../utils/colombiaHolidays';
 import { 
   Plus, Search, Edit2, Copy, Trash2, Download, Upload, Filter, Calendar, Users, 
-  Settings, RefreshCw, Layers, ChevronDown, ChevronUp, PlusCircle, Trash, X 
+  Settings, RefreshCw, Layers, ChevronDown, ChevronUp, PlusCircle, Trash, X, AlertCircle 
 } from 'lucide-react';
 
 export const Orders: React.FC = () => {
@@ -44,6 +45,7 @@ export const Orders: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
   const [notes, setNotes] = useState('');
+  const [dateWarning, setDateWarning] = useState<string | null>(null);
   
   // Multi-product form state:
   const [formProducts, setFormProducts] = useState<any[]>([
@@ -54,11 +56,40 @@ export const Orders: React.FC = () => {
     setExpandedOrderId(prev => prev === orderId ? null : orderId);
   };
 
+  const validateDueDate = (dateString: string): string | null => {
+    if (!dateString) return null;
+    
+    const date = new Date(dateString + 'T00:00:00');
+    const warnings: string[] = [];
+    
+    // Verificar si es fin de semana
+    if (isWeekend(date)) {
+      const dayName = date.getDay() === 0 ? 'domingo' : 'sábado';
+      warnings.push(`La fecha es ${dayName}`);
+    }
+    
+    // Verificar si es festivo
+    const holidayName = getColombiaHolidayName(date);
+    if (holidayName) {
+      warnings.push(`Festivo: ${holidayName}`);
+    }
+    
+    return warnings.length > 0 ? warnings.join(' • ') : null;
+  };
+
+  const handleDueDateChange = (newDate: string) => {
+    setDueDate(newDate);
+    const warning = validateDueDate(newDate);
+    setDateWarning(warning);
+  };
+
   const openCreateModal = () => {
     setEditingOrder(null);
     setClientName('');
     setPriority('medium');
-    setDueDate(new Date(Date.now() + 3 * 24 * 3600000).toISOString().split('T')[0]); // 3 days from now
+    const defaultDate = new Date(Date.now() + 3 * 24 * 3600000).toISOString().split('T')[0];
+    setDueDate(defaultDate);
+    setDateWarning(validateDueDate(defaultDate));
     setNotes('');
     setFormProducts([
       { name: '', quantity: 1, steps: [{ workstationId: workstations[0]?.id || '', estimatedHours: 8 }] }
@@ -71,6 +102,7 @@ export const Orders: React.FC = () => {
     setClientName(order.clientName);
     setPriority(order.priority);
     setDueDate(order.dueDate);
+    setDateWarning(validateDueDate(order.dueDate));
     setNotes(order.notes || '');
     
     // Deep clone products and steps for editing
@@ -610,9 +642,21 @@ export const Orders: React.FC = () => {
                 type="date"
                 required
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 text-xs focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 dark:text-slate-100"
+                onChange={(e) => handleDueDateChange(e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl bg-white dark:bg-slate-950 text-xs focus:ring-1 outline-none text-slate-800 dark:text-slate-100 ${
+                  dateWarning 
+                    ? 'border-amber-300 dark:border-amber-700 focus:ring-amber-500' 
+                    : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500'
+                }`}
               />
+              {dateWarning && (
+                <div className="flex items-start gap-2 mt-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-[11px] text-amber-700 dark:text-amber-200">
+                    {dateWarning}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
